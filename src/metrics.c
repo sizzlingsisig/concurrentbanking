@@ -30,7 +30,7 @@ void print_transaction_log(void) {
     for (int i = 0; i < num_transactions; i++) {
         Transaction* tx = &transactions[i];
         const char* status_str = (tx->status == TX_COMMITTED) ? "COMMITTED" : "ABORTED";
-        printf("%d\t%s\t%ld\t\t%d\t%d\t%d\n", 
+        printf("%d\t%s\t%d\t\t%d\t%d\t%d\n", 
                tx->tx_id, status_str, tx->start_tick, 
                tx->actual_start, tx->actual_end, tx->wait_ticks);
     }
