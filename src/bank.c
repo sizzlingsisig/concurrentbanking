@@ -1,4 +1,6 @@
+#define _XOPEN_SOURCE 700
 #include "../include/bank.h"
+#include <stdio.h>
 #include <string.h>
 
 Bank bank;
@@ -73,4 +75,28 @@ int get_total_balance(void) {
         total += get_balance(i);
     }
     return total;
+}
+
+int load_accounts_from_file(const char* filename) {
+    FILE* file = fopen(filename, "r");
+    if (!file) return -1;
+
+    char line[256];
+    int count = 0;
+    while (fgets(line, sizeof(line), file)) {
+        if (line[0] == '#' || line[0] == '\n') continue;
+
+        int id, balance;
+        if (sscanf(line, "%d %d", &id, &balance) == 2) {
+            if (id >= 0 && id < MAX_ACCOUNTS) {
+                bank.accounts[id].account_id = id;
+                bank.accounts[id].balance_centavos = balance;
+                bank.accounts[id].is_active = 1; // Flag to show this ID exists
+                pthread_rwlock_init(&bank.accounts[id].lock, NULL);
+                count++;
+            }
+        }
+    }
+    fclose(file);
+    return count;
 }

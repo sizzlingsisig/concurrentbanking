@@ -22,7 +22,8 @@ typedef struct {
 typedef enum {
     TX_RUNNING,
     TX_COMMITTED,
-    TX_ABORTED
+    TX_ABORTED,
+    TX_PENDING
 } TxStatus;
 
 typedef struct {
@@ -36,6 +37,7 @@ typedef struct {
     int wait_ticks;
     TxStatus status;
 } Transaction;
+
 
 #define MAX_TRANSACTIONS 1000
 extern Transaction transactions[MAX_TRANSACTIONS];

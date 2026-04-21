@@ -1,6 +1,9 @@
-#include "../include/timer.h"
+#define _DEFAULT_SOURCE
 #include <unistd.h>
 #include <stdio.h>
+#include <pthread.h>
+#include "../include/timer.h"
+
 
 // Global simulation variables
 volatile int64_t global_tick = 0;

@@ -1,3 +1,4 @@
+#define _XOPEN_SOURCE 700
 #include "../include/transaction.h"
 #include "../include/bank.h"
 #include "../include/timer.h"
@@ -5,6 +6,7 @@
 #include "../include/buffer_pool.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 Transaction transactions[MAX_TRANSACTIONS];
 int num_transactions = 0;
@@ -92,7 +94,59 @@ void wait_for_all_transactions(void) {
  * Stub for loading transactions. Implementation depends on your 
  * specific parser logic for the trace file format.
  */
+
 int load_transactions_from_file(const char* filename) {
-    // Logic to parse file and populate transactions[] goes here
-    return 0;
+    FILE* file = fopen(filename, "r");
+    if (!file) {
+        perror("Failed to open trace file");
+        return -1;
+    }
+
+    char line[256];
+    num_transactions = 0;
+
+    while (fgets(line, sizeof(line), file) && num_transactions < MAX_TRANSACTIONS) {
+        // 1. Skip comments and empty lines
+        if (line[0] == '#' || line[0] == '\n' || line[0] == '\r') continue;
+
+        Transaction* tx = &transactions[num_transactions];
+        char tx_label[16];
+        char op_name[16];
+        int start_tick;
+
+        // 2. Parse the prefix: Transaction ID, Start Tick, and Operation Name
+        // Example: T1 0 DEPOSIT ...
+        if (sscanf(line, "%s %d %s", tx_label, &start_tick, op_name) < 3) continue;
+
+        tx->tx_id = num_transactions;
+        tx->start_tick = start_tick;
+        tx->status = TX_PENDING;
+        tx->num_ops = 1; // Simplification: 1 operation per line in this format
+        tx->wait_ticks = 0;
+
+        Operation* op = &tx->ops[0];
+
+        // 3. Map string operation names to your Enum types
+        if (strcmp(op_name, "DEPOSIT") == 0) {
+            op->type = OP_DEPOSIT;
+            sscanf(line, "%*s %*d %*s %d %d", &op->account_id, &op->amount_centavos);
+        } 
+        else if (strcmp(op_name, "WITHDRAW") == 0) {
+            op->type = OP_WITHDRAW;
+            sscanf(line, "%*s %*d %*s %d %d", &op->account_id, &op->amount_centavos);
+        } 
+        else if (strcmp(op_name, "TRANSFER") == 0) {
+            op->type = OP_TRANSFER;
+            sscanf(line, "%*s %*d %*s %d %d %d", &op->account_id, &op->target_account, &op->amount_centavos);
+        } 
+        else if (strcmp(op_name, "BALANCE") == 0) {
+            op->type = OP_BALANCE;
+            sscanf(line, "%*s %*d %*s %d", &op->account_id);
+        }
+
+        num_transactions++;
+    }
+
+    fclose(file);
+    return num_transactions;
 }
