@@ -95,6 +95,25 @@ void wait_for_all_transactions(void) {
  * specific parser logic for the trace file format.
  */
 
+// Helper: Extract transaction number from "T1" -> 1
+static int parse_tx_number(const char* tx_label) {
+    // Skip 'T' and parse the number
+    if (tx_label[0] == 'T' || tx_label[0] == 't') {
+        return atoi(tx_label + 1);
+    }
+    return atoi(tx_label);
+}
+
+// Helper: Find existing transaction by tx_id, or return -1
+static int find_transaction(int tx_id) {
+    for (int i = 0; i < num_transactions; i++) {
+        if (transactions[i].tx_id == tx_id) {
+            return i;
+        }
+    }
+    return -1;
+}
+
 int load_transactions_from_file(const char* filename) {
     FILE* file = fopen(filename, "r");
     if (!file) {
@@ -105,11 +124,18 @@ int load_transactions_from_file(const char* filename) {
     char line[256];
     num_transactions = 0;
 
-    while (fgets(line, sizeof(line), file) && num_transactions < MAX_TRANSACTIONS) {
+    // Initialize all transactions
+    for (int i = 0; i < MAX_TRANSACTIONS; i++) {
+        transactions[i].num_ops = 0;
+        transactions[i].tx_id = -1;
+        transactions[i].status = TX_PENDING;
+        transactions[i].wait_ticks = 0;
+    }
+
+    while (fgets(line, sizeof(line), file)) {
         // 1. Skip comments and empty lines
         if (line[0] == '#' || line[0] == '\n' || line[0] == '\r') continue;
 
-        Transaction* tx = &transactions[num_transactions];
         char tx_label[16];
         char op_name[16];
         int start_tick;
@@ -118,15 +144,40 @@ int load_transactions_from_file(const char* filename) {
         // Example: T1 0 DEPOSIT ...
         if (sscanf(line, "%s %d %s", tx_label, &start_tick, op_name) < 3) continue;
 
-        tx->tx_id = num_transactions;
-        tx->start_tick = start_tick;
-        tx->status = TX_PENDING;
-        tx->num_ops = 1; // Simplification: 1 operation per line in this format
-        tx->wait_ticks = 0;
+        // Extract transaction number from "T1" -> 1
+        int tx_num = parse_tx_number(tx_label);
 
-        Operation* op = &tx->ops[0];
+        // 3. Find existing transaction or create new one
+        int tx_idx = find_transaction(tx_num);
+        Transaction* tx;
 
-        // 3. Map string operation names to your Enum types
+        if (tx_idx == -1) {
+            // New transaction
+            if (num_transactions >= MAX_TRANSACTIONS) continue;
+            tx = &transactions[num_transactions];
+            tx->tx_id = tx_num;
+            tx->start_tick = start_tick;
+            tx->status = TX_PENDING;
+            tx->num_ops = 0;
+            tx->wait_ticks = 0;
+            tx_idx = num_transactions;
+            num_transactions++;
+        } else {
+            // Existing transaction - use it
+            tx = &transactions[tx_idx];
+            // Update start_tick to earliest if needed
+            if (start_tick < tx->start_tick) {
+                tx->start_tick = start_tick;
+            }
+        }
+
+        // 4. Add operation to transaction
+        if (tx->num_ops >= MAX_OPS_PER_TX) continue;
+
+        Operation* op = &tx->ops[tx->num_ops];
+        tx->num_ops++;
+
+        // 5. Map string operation names to Enum types
         if (strcmp(op_name, "DEPOSIT") == 0) {
             op->type = OP_DEPOSIT;
             sscanf(line, "%*s %*d %*s %d %d", &op->account_id, &op->amount_centavos);
@@ -143,8 +194,6 @@ int load_transactions_from_file(const char* filename) {
             op->type = OP_BALANCE;
             sscanf(line, "%*s %*d %*s %d", &op->account_id);
         }
-
-        num_transactions++;
     }
 
     fclose(file);
