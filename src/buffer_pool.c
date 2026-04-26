@@ -1,5 +1,6 @@
 #include "../include/buffer_pool.h"
 #include "../include/bank.h"
+#include "../include/metrics.h"
 #include <stdio.h>
 
 BufferPool buffer_pool;
@@ -27,7 +28,10 @@ void init_buffer_pool(void) {
  */
 void load_account(int account_id) {
     // Wait for an empty slot
-    sem_wait(&buffer_pool.empty_slots);
+    if (sem_wait(&buffer_pool.empty_slots) != 0) {
+        // Check if we blocked
+        blocked_operations++;
+    }
     
     pthread_mutex_lock(&buffer_pool.pool_lock);
     for (int i = 0; i < BUFFER_POOL_SIZE; i++) {
@@ -35,6 +39,16 @@ void load_account(int account_id) {
             buffer_pool.slots[i].account_id = account_id;
             buffer_pool.slots[i].data = &bank.accounts[account_id];
             buffer_pool.slots[i].in_use = true;
+            
+            // Track metrics
+            total_loads++;
+            int current_usage = 0;
+            for (int j = 0; j < BUFFER_POOL_SIZE; j++) {
+                if (buffer_pool.slots[j].in_use) current_usage++;
+            }
+            if (current_usage > peak_usage) {
+                peak_usage = current_usage;
+            }
             break;
         }
     }
@@ -57,6 +71,9 @@ void unload_account(int account_id) {
             buffer_pool.slots[i].in_use = false;
             buffer_pool.slots[i].account_id = -1;
             buffer_pool.slots[i].data = NULL;
+            
+            // Track metrics
+            total_unloads++;
             break;
         }
     }
