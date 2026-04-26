@@ -95,8 +95,10 @@ int main(int argc, char* argv[]) {
     wait_for_all_transactions();
 
     // Cleanup and Report
-    cleanup_timer();
+    // Signal timer to stop, then join, then cleanup
+    stop_timer();
     pthread_join(timer_tid, NULL);
+    cleanup_timer();
 
     print_transaction_log();
     print_metrics();
