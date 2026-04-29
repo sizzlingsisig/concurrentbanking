@@ -9,6 +9,8 @@
 #include <string.h>
 #include <time.h>
 
+__thread int current_tx_id = -1;
+
 Transaction transactions[MAX_TRANSACTIONS];
 int num_transactions = 0;
 
@@ -24,6 +26,8 @@ void register_tx_completed(TxCallback callback) {
  */
 void* execute_transaction(void* arg) {
     Transaction* tx = (Transaction*)arg;
+    
+    current_tx_id = tx->tx_id;
     
     // 1. Wait until the simulation reaches the scheduled start time
     wait_until_tick(tx->start_tick);
@@ -91,6 +95,8 @@ cleanup:
     if (tx_completed_hook) {
         tx_completed_hook(tx);
     }
+    
+    current_tx_id = -1;
     
     return NULL;
 }

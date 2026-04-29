@@ -87,6 +87,10 @@ void load_account(int account_id) {
  * Removes an account from the pool, freeing up a slot.
  */
 void unload_account(int account_id) {
+    if (!validate_account_id(account_id)) {
+        return;
+    }
+    
     pthread_mutex_lock(&buffer_pool.pool_lock);
 
     for (int i = 0; i < BUFFER_POOL_SIZE; i++) {

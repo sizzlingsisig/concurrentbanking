@@ -5,6 +5,7 @@
 #include <pthread.h>
 
 #define MAX_TXN_TRACKED 1000
+#define MAX_ACCOUNTS_TRACKED 100
 
 typedef enum {
     STRATEGY_PREVENTION,
@@ -19,12 +20,21 @@ typedef struct {
 } WaitGraphEntry;
 
 typedef struct {
+    int account_id;
+    int held_by_tx;
+} AccountLockTracker;
+
+typedef struct {
     StrategyType current;
     pthread_mutex_t lock;
+    pthread_mutex_t account_locks_lock;
     
     // Detection-specific state
     WaitGraphEntry wait_graph[MAX_TXN_TRACKED];
     int active_tx_count;
+    
+    // Account lock holder tracking
+    AccountLockTracker account_locks[MAX_ACCOUNTS_TRACKED];
 } DeadlockHandler;
 
 extern DeadlockHandler dl_handler;
