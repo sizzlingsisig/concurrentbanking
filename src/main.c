@@ -87,11 +87,17 @@ int main(int argc, char* argv[]) {
 
     // Spawn Timer Thread
     pthread_t timer_tid;
-    pthread_create(&timer_tid, NULL, timer_thread, NULL);
+    if (pthread_create(&timer_tid, NULL, timer_thread, NULL) != 0) {
+        perror("Failed to create timer thread");
+        return 1;
+    }
 
     // Spawn Transaction Threads
     for (int i = 0; i < num_transactions; i++) {
-        pthread_create(&transactions[i].thread, NULL, execute_transaction, &transactions[i]);
+        if (pthread_create(&transactions[i].thread, NULL, execute_transaction, &transactions[i]) != 0) {
+            perror("Failed to create transaction thread");
+            return 1;
+        }
     }
 
     wait_for_all_transactions();
@@ -106,6 +112,9 @@ int main(int argc, char* argv[]) {
     print_metrics();
     check_balance_conservation(initial_total);
 
+    cleanup_buffer_pool();
+    cleanup_bank();
+    cleanup_metrics();
     dl_cleanup();
 
     return 0;

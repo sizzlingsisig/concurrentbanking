@@ -105,24 +105,32 @@ int64_t get_total_balance(void) {
 
 int load_accounts_from_file(const char* filename) {
     FILE* file = fopen(filename, "r");
-    if (!file) return -1;
+    if (!file) {
+        perror("Failed to open accounts file");
+        return -1;
+    }
 
     char line[256];
     int count = 0;
-    while (fgets(line, sizeof(line), file)) {
+    while (fgets(line, sizeof(line), file) != NULL) {
         if (line[0] == '#' || line[0] == '\n' || line[0] == '\r') continue;
 
         int id, balance;
-        // Use IF, not WHILE, to avoid an infinite loop on the same string
-        if (sscanf(line, "%d %d", &id, &balance) == 2) {
-            if (id >= 0 && id < MAX_ACCOUNTS) {
-                bank.accounts[id].balance_centavos = balance;
-                bank.accounts[id].is_active = 1;
-                pthread_rwlock_init(&bank.accounts[id].lock, NULL);
-                count++;
-            }
+        if (sscanf(line, "%d %d", &id, &balance) != 2) continue;
+        if (id >= 0 && id < MAX_ACCOUNTS) {
+            bank.accounts[id].balance_centavos = balance;
+            bank.accounts[id].is_active = 1;
+            pthread_rwlock_init(&bank.accounts[id].lock, NULL);
+            count++;
         }
     }
     fclose(file);
     return count; 
+}
+
+void cleanup_bank(void) {
+    pthread_mutex_destroy(&bank.bank_lock);
+    for (int i = 0; i < MAX_ACCOUNTS; i++) {
+        pthread_rwlock_destroy(&bank.accounts[i].lock);
+    }
 }

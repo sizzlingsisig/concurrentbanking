@@ -154,7 +154,7 @@ int load_transactions_from_file(const char* filename) {
         transactions[i].wait_ticks = 0;
     }
 
-    while (fgets(line, sizeof(line), file)) {
+    while (fgets(line, sizeof(line), file) != NULL) {
         // 1. Skip comments and empty lines
         if (line[0] == '#' || line[0] == '\n' || line[0] == '\r') continue;
 
