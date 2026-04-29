@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 Transaction transactions[MAX_TRANSACTIONS];
 int num_transactions = 0;
@@ -59,6 +60,10 @@ void* execute_transaction(void* arg) {
                 break;
             }
         }
+
+        struct timespec ts = {0, 100000000}; // 100 ms
+
+        nanosleep(&ts, NULL);
         
         // Track time spent waiting for locks
         tx->wait_ticks += ((int)global_tick - tick_before);
@@ -176,6 +181,8 @@ int load_transactions_from_file(const char* filename) {
 
         Operation* op = &tx->ops[tx->num_ops];
         tx->num_ops++;
+
+        memset(op, 0, sizeof(Operation));
 
         // 5. Map string operation names to Enum types
         if (strcmp(op_name, "DEPOSIT") == 0) {

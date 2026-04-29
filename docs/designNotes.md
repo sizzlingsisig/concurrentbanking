@@ -658,17 +658,17 @@ This breaks **Coffman Condition #4: Circular Wait**
 - [ ] metrics.c - Statistics collection
 
 ### Phase 4: Input Handling & Main Program
-- [ ] main.c - CLI parsing, file loading, initialization
-- [ ] Account file format support
-- [ ] Trace file format support
+- [x] main.c - CLI parsing, file loading, initialization
+- [x] Account file format support
+- [x] Trace file format support
 
 ### Phase 5: Testing
-- [ ] accounts.txt - Initial balances
-- [ ] trace_simple.txt - Basic operations
-- [ ] trace_readers.txt - Concurrent reads
-- [ ] trace_deadlock.txt - Transfer scenario
-- [ ] trace_abort.txt - Insufficient funds
-- [] trace_buffer.txt - Buffer saturation
+- [x] accounts.txt - Initial balances
+- [x] trace_simple.txt - Basic operations (fixed to use TRANSFER)
+- [x] trace_readers.txt - Concurrent reads
+- [x] trace_deadlock.txt - Transfer scenario
+- [x] trace_abort.txt - Insufficient funds
+- [x] trace_buffer.txt - Buffer saturation (fixed to use TRANSFER)
 - [ ] ThreadSanitizer validation - Zero warnings required (PENDING)
 
 ### Phase 6: Documentation

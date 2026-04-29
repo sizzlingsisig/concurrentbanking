@@ -11,6 +11,7 @@ typedef struct {
     int account_id;
     void* data;
     bool in_use;
+    int pin_count;   
 } BufferSlot;
 
 typedef struct {

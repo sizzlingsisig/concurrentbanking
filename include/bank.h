@@ -1,5 +1,6 @@
 #ifndef BANK_H
 #define BANK_H
+#include <stdint.h>
 
 #ifndef _XOPEN_SOURCE
 #define _XOPEN_SOURCE 700
@@ -28,7 +29,7 @@ void init_bank(void);
 int get_balance(int account_id);
 void deposit(int account_id, int amount_centavos);
 int withdraw(int account_id, int amount_centavos);
-int get_total_balance(void);
+int64_t get_total_balance(void);
 int load_accounts_from_file(const char* filename);
 
 #endif

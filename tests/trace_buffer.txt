@@ -1,8 +1,9 @@
 # Buffer pool saturation test - pool size is 5
 # More accounts than pool slots, should block
-T1  0  DEPOSIT   1  1000
-T2  0  DEPOSIT   2  1000
-T3  0  DEPOSIT   3  1000
-T4  0  DEPOSIT   4  1000
-T5  0  DEPOSIT   5  1000
-T6  0  DEPOSIT   6  1000
+# Using transfers to maintain money conservation (transfers don't create/destroy money)
+T1  0  TRANSFER  0  1  1000
+T2  0  TRANSFER  0  2  1000
+T3  0  TRANSFER  0  3  1000
+T4  0  TRANSFER  0  4  1000
+T5  0  TRANSFER  0  5  1000
+T6  0  TRANSFER  0  6  1000

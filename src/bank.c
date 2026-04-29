@@ -2,6 +2,7 @@
 #include "../include/bank.h"
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 Bank bank;
 
@@ -16,6 +17,7 @@ void init_bank(void) {
     for (int i = 0; i < MAX_ACCOUNTS; i++) {
         bank.accounts[i].account_id = i;
         bank.accounts[i].balance_centavos = 0;
+        bank.accounts[i].is_active = 1;  // All accounts are part of the system
         // Initialize the per-account rwlock
         pthread_rwlock_init(&bank.accounts[i].lock, NULL);
     }
@@ -67,12 +69,14 @@ int withdraw(int account_id, int amount_centavos) {
  * Calculates the sum of all account balances.
  * Used for the balance conservation check.
  */
-int get_total_balance(void) {
-    int total = 0;
-    // For a consistent snapshot, we lock the bank metadata or 
-    // lock all accounts sequentially.
+int64_t get_total_balance(void) {
+    int64_t total = 0;
     for (int i = 0; i < MAX_ACCOUNTS; i++) {
-        total += get_balance(i);
+        if (bank.accounts[i].is_active) { 
+            pthread_rwlock_rdlock(&bank.accounts[i].lock);
+            total += bank.accounts[i].balance_centavos;
+            pthread_rwlock_unlock(&bank.accounts[i].lock);
+        }
     }
     return total;
 }
@@ -84,19 +88,19 @@ int load_accounts_from_file(const char* filename) {
     char line[256];
     int count = 0;
     while (fgets(line, sizeof(line), file)) {
-        if (line[0] == '#' || line[0] == '\n') continue;
+        if (line[0] == '#' || line[0] == '\n' || line[0] == '\r') continue;
 
         int id, balance;
+        // Use IF, not WHILE, to avoid an infinite loop on the same string
         if (sscanf(line, "%d %d", &id, &balance) == 2) {
             if (id >= 0 && id < MAX_ACCOUNTS) {
-                bank.accounts[id].account_id = id;
                 bank.accounts[id].balance_centavos = balance;
-                bank.accounts[id].is_active = 1; // Flag to show this ID exists
+                bank.accounts[id].is_active = 1;
                 pthread_rwlock_init(&bank.accounts[id].lock, NULL);
                 count++;
             }
         }
     }
     fclose(file);
-    return count;
+    return count; 
 }

@@ -5,6 +5,8 @@
 
 BufferPool buffer_pool;
 
+extern int total_unloads;
+
 /**
  * Initializes the buffer pool with 5 empty slots.
  * Uses semaphores to coordinate access.
@@ -27,60 +29,88 @@ void init_buffer_pool(void) {
  * Blocks if the pool is full.
  */
 void load_account(int account_id) {
-    // Wait for an empty slot
-    if (sem_wait(&buffer_pool.empty_slots) != 0) {
-        // Check if we blocked
-        blocked_operations++;
-    }
-    
     pthread_mutex_lock(&buffer_pool.pool_lock);
+
+    // Check if loaded
+    for (int i = 0; i < BUFFER_POOL_SIZE; i++) {
+        if (buffer_pool.slots[i].in_use &&
+            buffer_pool.slots[i].account_id == account_id) {
+            buffer_pool.slots[i].pin_count++;
+
+            // Already loaded → just reuse
+            pthread_mutex_unlock(&buffer_pool.pool_lock);
+            return;
+        }
+    }
+
+    pthread_mutex_unlock(&buffer_pool.pool_lock);
+
+    // THEN do normal loading
+    sem_wait(&buffer_pool.empty_slots);
+
+    pthread_mutex_lock(&buffer_pool.pool_lock);
+
+    for (int i = 0; i < BUFFER_POOL_SIZE; i++) {
+        if (buffer_pool.slots[i].in_use &&
+            buffer_pool.slots[i].account_id == account_id) {
+
+            buffer_pool.slots[i].pin_count++;
+            pthread_mutex_unlock(&buffer_pool.pool_lock);
+
+            sem_post(&buffer_pool.empty_slots); // give slot back
+            return;
+        }
+    }
+
+    total_loads++;
+
     for (int i = 0; i < BUFFER_POOL_SIZE; i++) {
         if (!buffer_pool.slots[i].in_use) {
             buffer_pool.slots[i].account_id = account_id;
             buffer_pool.slots[i].data = &bank.accounts[account_id];
             buffer_pool.slots[i].in_use = true;
-            
-            // Track metrics
-            total_loads++;
-            int current_usage = 0;
-            for (int j = 0; j < BUFFER_POOL_SIZE; j++) {
-                if (buffer_pool.slots[j].in_use) current_usage++;
-            }
-            if (current_usage > peak_usage) {
-                peak_usage = current_usage;
-            }
+            buffer_pool.slots[i].pin_count = 1;
             break;
         }
     }
+
     pthread_mutex_unlock(&buffer_pool.pool_lock);
-    
-    // Increment full slots count
     sem_post(&buffer_pool.full_slots);
+    
 }
 
 /**
  * Removes an account from the pool, freeing up a slot.
  */
 void unload_account(int account_id) {
-    // Wait for a full slot to be available for unloading
-    sem_wait(&buffer_pool.full_slots);
-    
     pthread_mutex_lock(&buffer_pool.pool_lock);
+
     for (int i = 0; i < BUFFER_POOL_SIZE; i++) {
-        if (buffer_pool.slots[i].in_use && buffer_pool.slots[i].account_id == account_id) {
-            buffer_pool.slots[i].in_use = false;
-            buffer_pool.slots[i].account_id = -1;
-            buffer_pool.slots[i].data = NULL;
-            
-            // Track metrics
-            total_unloads++;
-            break;
+        if (buffer_pool.slots[i].in_use &&
+            buffer_pool.slots[i].account_id == account_id) {
+
+            buffer_pool.slots[i].pin_count--;
+
+            if (buffer_pool.slots[i].pin_count == 0) {
+                buffer_pool.slots[i].in_use = false;
+                buffer_pool.slots[i].account_id = -1;
+                buffer_pool.slots[i].data = NULL;
+
+                total_unloads++;
+
+                pthread_mutex_unlock(&buffer_pool.pool_lock);
+                sem_post(&buffer_pool.empty_slots);
+                return;
+            }
+
+            // Still in use by others
+            pthread_mutex_unlock(&buffer_pool.pool_lock);
+            return;
         }
     }
+
+    // Not found (shouldn't happen)
     pthread_mutex_unlock(&buffer_pool.pool_lock);
-    
-    // Signal that an empty slot is now available
-    sem_post(&buffer_pool.empty_slots);
 }
 
 /**
