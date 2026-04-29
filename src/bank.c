@@ -17,10 +17,17 @@ void init_bank(void) {
     for (int i = 0; i < MAX_ACCOUNTS; i++) {
         bank.accounts[i].account_id = i;
         bank.accounts[i].balance_centavos = 0;
-        bank.accounts[i].is_active = 1;  // All accounts are part of the system
-        // Initialize the per-account rwlock
+        bank.accounts[i].is_active = 1;
         pthread_rwlock_init(&bank.accounts[i].lock, NULL);
     }
+}
+
+/**
+ * Validates an account ID is within valid range.
+ * Returns 1 if valid, 0 if invalid.
+ */
+int validate_account_id(int account_id) {
+    return (account_id >= 0 && account_id < MAX_ACCOUNTS && bank.accounts[account_id].is_active);
 }
 
 /**
@@ -28,6 +35,9 @@ void init_bank(void) {
  * allow for concurrent readers.
  */
 int get_balance(int account_id) {
+    if (!validate_account_id(account_id)) {
+        return 0;
+    }
     Account* acc = &bank.accounts[account_id];
     pthread_rwlock_rdlock(&acc->lock);
     int balance = acc->balance_centavos;
@@ -40,6 +50,12 @@ int get_balance(int account_id) {
  * for exclusive access.
  */
 void deposit(int account_id, int amount_centavos) {
+    if (!validate_account_id(account_id)) {
+        return;
+    }
+    if (amount_centavos <= 0) {
+        return;
+    }
     Account* acc = &bank.accounts[account_id];
     pthread_rwlock_wrlock(&acc->lock);
     acc->balance_centavos += amount_centavos;
@@ -51,6 +67,12 @@ void deposit(int account_id, int amount_centavos) {
  * Returns 1 (true) on success, 0 (false) on failure.
  */
 int withdraw(int account_id, int amount_centavos) {
+    if (!validate_account_id(account_id)) {
+        return 0;
+    }
+    if (amount_centavos <= 0) {
+        return 0;
+    }
     Account* acc = &bank.accounts[account_id];
     pthread_rwlock_wrlock(&acc->lock);
     

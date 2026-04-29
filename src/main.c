@@ -48,9 +48,9 @@ int main(int argc, char* argv[]) {
                 break;
             case 'd':
                 if (strcmp(optarg, "detection") == 0) {
-                    deadlock_strategy = DEADLOCK_DETECTION;
+                    dl_set_strategy(STRATEGY_DETECTION);
                 } else {
-                    deadlock_strategy = DEADLOCK_PREVENTION;
+                    dl_set_strategy(STRATEGY_PREVENTION);
                 }
                 break;
             case 'm':
@@ -73,6 +73,7 @@ int main(int argc, char* argv[]) {
     }
 
     // --- Start Simulation ---
+    dl_init();
     init_bank();
     init_buffer_pool();
     init_metrics();
@@ -104,6 +105,8 @@ int main(int argc, char* argv[]) {
     print_transaction_log();
     print_metrics();
     check_balance_conservation(initial_total);
+
+    dl_cleanup();
 
     return 0;
 }

@@ -26,6 +26,7 @@ typedef struct {
 extern Bank bank;
 
 void init_bank(void);
+int validate_account_id(int account_id);
 int get_balance(int account_id);
 void deposit(int account_id, int amount_centavos);
 int withdraw(int account_id, int amount_centavos);

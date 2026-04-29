@@ -29,6 +29,10 @@ void init_buffer_pool(void) {
  * Blocks if the pool is full.
  */
 void load_account(int account_id) {
+    if (!validate_account_id(account_id)) {
+        return;
+    }
+
     pthread_mutex_lock(&buffer_pool.pool_lock);
 
     // Check if loaded
@@ -89,7 +93,9 @@ void unload_account(int account_id) {
         if (buffer_pool.slots[i].in_use &&
             buffer_pool.slots[i].account_id == account_id) {
 
-            buffer_pool.slots[i].pin_count--;
+            if (buffer_pool.slots[i].pin_count > 0) {
+                buffer_pool.slots[i].pin_count--;
+            }
 
             if (buffer_pool.slots[i].pin_count == 0) {
                 buffer_pool.slots[i].in_use = false;
