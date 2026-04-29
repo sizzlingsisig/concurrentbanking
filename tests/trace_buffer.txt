@@ -1,8 +1,9 @@
 # Buffer pool saturation test - pool size is 5
 # More accounts than pool slots, should block
-T1  0  DEPOSIT   1  1000
+# Uses accounts that exist in accounts.txt: 0,2,4,20,30,1
+T1  0  DEPOSIT   0  1000
 T2  0  DEPOSIT   2  1000
-T3  0  DEPOSIT   3  1000
-T4  0  DEPOSIT   4  1000
-T5  0  DEPOSIT   5  1000
-T6  0  DEPOSIT   6  1000
+T3  0  DEPOSIT   4  1000
+T4  0  DEPOSIT  20  1000
+T5  0  DEPOSIT  30  1000
+T6  0  DEPOSIT   1  1000
