@@ -12,15 +12,14 @@ extern int total_unloads;
  * Uses semaphores to coordinate access.
  */
 void init_buffer_pool(void) {
-    // 0 indicates the semaphore is shared between threads
     sem_init(&buffer_pool.empty_slots, 0, BUFFER_POOL_SIZE);
-    sem_init(&buffer_pool.full_slots, 0, 0);
     pthread_mutex_init(&buffer_pool.pool_lock, NULL);
 
     for (int i = 0; i < BUFFER_POOL_SIZE; i++) {
         buffer_pool.slots[i].in_use = false;
         buffer_pool.slots[i].account_id = -1;
         buffer_pool.slots[i].data = NULL;
+        buffer_pool.slots[i].pin_count = 0;
     }
 }
 
@@ -35,13 +34,10 @@ void load_account(int account_id) {
 
     pthread_mutex_lock(&buffer_pool.pool_lock);
 
-    // Check if loaded
     for (int i = 0; i < BUFFER_POOL_SIZE; i++) {
         if (buffer_pool.slots[i].in_use &&
             buffer_pool.slots[i].account_id == account_id) {
             buffer_pool.slots[i].pin_count++;
-
-            // Already loaded → just reuse
             pthread_mutex_unlock(&buffer_pool.pool_lock);
             return;
         }
@@ -49,22 +45,16 @@ void load_account(int account_id) {
 
     pthread_mutex_unlock(&buffer_pool.pool_lock);
 
-    // THEN do normal loading
-    sem_wait(&buffer_pool.empty_slots);
-
-    pthread_mutex_lock(&buffer_pool.pool_lock);
-
-    for (int i = 0; i < BUFFER_POOL_SIZE; i++) {
-        if (buffer_pool.slots[i].in_use &&
-            buffer_pool.slots[i].account_id == account_id) {
-
-            buffer_pool.slots[i].pin_count++;
-            pthread_mutex_unlock(&buffer_pool.pool_lock);
-
-            sem_post(&buffer_pool.empty_slots); // give slot back
-            return;
-        }
+    // Track blocked operations
+    int sem_val;
+    sem_getvalue(&buffer_pool.empty_slots, &sem_val);
+    if (sem_val <= 0) {
+        track_buffer_metrics(-1, true);
     }
+
+    sem_wait(&buffer_pool.empty_slots);
+    
+    pthread_mutex_lock(&buffer_pool.pool_lock);
 
     total_loads++;
 
@@ -78,9 +68,14 @@ void load_account(int account_id) {
         }
     }
 
+    // Track peak usage
+    int current_usage = 0;
+    for (int i = 0; i < BUFFER_POOL_SIZE; i++) {
+        if (buffer_pool.slots[i].in_use) current_usage++;
+    }
+    track_buffer_metrics(current_usage, false);
+
     pthread_mutex_unlock(&buffer_pool.pool_lock);
-    sem_post(&buffer_pool.full_slots);
-    
 }
 
 /**
@@ -128,6 +123,5 @@ void unload_account(int account_id) {
  */
 void cleanup_buffer_pool(void) {
     sem_destroy(&buffer_pool.empty_slots);
-    sem_destroy(&buffer_pool.full_slots);
     pthread_mutex_destroy(&buffer_pool.pool_lock);
 }

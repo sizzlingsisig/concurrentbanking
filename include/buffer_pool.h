@@ -17,7 +17,6 @@ typedef struct {
 typedef struct {
     BufferSlot slots[BUFFER_POOL_SIZE];
     sem_t empty_slots;
-    sem_t full_slots;
     pthread_mutex_t pool_lock;
 } BufferPool;
 
