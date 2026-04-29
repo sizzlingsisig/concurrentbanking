@@ -61,7 +61,7 @@ void* execute_transaction(void* arg) {
             }
         }
 
-        struct timespec ts = {0, 100000000}; // 100 ms
+        struct timespec ts = {0, OPERATION_DELAY_NS};
 
         nanosleep(&ts, NULL);
         
@@ -126,7 +126,7 @@ int load_transactions_from_file(const char* filename) {
         return -1;
     }
 
-    char line[256];
+    char line[LINE_BUFFER_SIZE];
     num_transactions = 0;
 
     // Initialize all transactions

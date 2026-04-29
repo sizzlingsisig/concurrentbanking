@@ -4,6 +4,9 @@
 #include <pthread.h>
 
 #define MAX_OPS_PER_TX 256
+#define MAX_TRANSACTIONS 1000
+#define LINE_BUFFER_SIZE 256
+#define OPERATION_DELAY_NS 100000000  // 100ms in nanoseconds
 
 typedef enum {
     OP_DEPOSIT,

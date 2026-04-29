@@ -9,7 +9,7 @@
 volatile int64_t global_tick = 0;
 pthread_mutex_t tick_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t tick_changed = PTHREAD_COND_INITIALIZER;
-int tick_interval_ms = 100;
+int tick_interval_ms = DEFAULT_TICK_INTERVAL_MS;
 volatile int simulation_running = 1;
 
 /**

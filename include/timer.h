@@ -4,6 +4,8 @@
 #include <pthread.h>
 #include <stdint.h>
 
+#define DEFAULT_TICK_INTERVAL_MS 100
+
 extern volatile int64_t global_tick;
 extern pthread_mutex_t tick_lock;
 extern pthread_cond_t tick_changed;
