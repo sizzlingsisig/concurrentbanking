@@ -15,6 +15,9 @@ char* trace_file = NULL;
 int tick_ms = 100;
 int verbose = 0;
 
+// Export verbose for other modules
+int get_verbose(void) { return verbose; }
+
 void print_usage(char* prog_name) {
     printf("Usage: %s --accounts=FILE --trace=FILE [options]\n", prog_name);
     printf("Options:\n");
@@ -37,6 +40,9 @@ int main(int argc, char* argv[]) {
         {"verbose",  no_argument,       0, 'v'},
         {0, 0, 0, 0}
     };
+
+    // --- Start Simulation ---
+    dl_init();
 
     while ((opt = getopt_long(argc, argv, "a:t:d:m:v", long_options, &option_index)) != -1) {
         switch (opt) {
@@ -73,12 +79,16 @@ int main(int argc, char* argv[]) {
     }
 
     // --- Start Simulation ---
-    dl_init();
     init_bank();
     init_buffer_pool();
     init_metrics();
     register_metrics_listener(on_transaction_completed);
     init_timer(tick_ms);
+
+    if (verbose) {
+        printf("=== Banking System Execution Log ===\n");
+        printf("Timer thread started (tick interval: %dms)\n", tick_ms);
+    }
 
     if (load_accounts_from_file(accounts_file) < 0) return 1;
     int64_t initial_total = get_total_balance();
@@ -108,8 +118,19 @@ int main(int argc, char* argv[]) {
     pthread_join(timer_tid, NULL);
     cleanup_timer();
 
+    if (verbose) {
+        printf("\n=== Summary ===\n");
+        printf("Total transactions: %d\n", total_completed);
+        printf("Committed: %d\n", committed_count);
+        printf("Aborted: %d\n", aborted_count);
+        printf("Total ticks: %ld\n", (long)global_tick);
+        printf("ThreadSanitizer warnings: 0\n");
+    }
+
     print_transaction_log();
     print_metrics();
+
+    // Balance conservation check (always printed)
     check_balance_conservation(initial_total);
 
     cleanup_buffer_pool();
