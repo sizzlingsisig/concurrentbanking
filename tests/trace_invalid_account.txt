@@ -1,0 +1,3 @@
+# Invalid account ID - account 100 is outside valid range (0-99)
+T1  0  DEPOSIT   100  1000
+T1  1  BALANCE   100

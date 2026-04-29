@@ -1,0 +1,6 @@
+# Multiple operations on same account - should serialize correctly
+# Using transfers to maintain balance (transfer out first, then back in = net zero)
+T1  0  TRANSFER  10  0  10000
+T1  1  TRANSFER  0  10  5000
+T1  2  TRANSFER  10  0  2000
+T1  3  BALANCE   10
