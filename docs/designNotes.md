@@ -673,7 +673,8 @@ This breaks **Coffman Condition #4: Circular Wait**
 
 ### Phase 6: Documentation
 - [x] architecture.md - System architecture
-- [ ] README.md - Compilation and usage (optional)
+- [x] README.md - Compilation and usage (complete with group members, usage, features, limitations)
+- [x] Code documentation - Doxygen-style block comments on all public functions
 
 ---
 

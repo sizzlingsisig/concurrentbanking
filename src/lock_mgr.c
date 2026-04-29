@@ -2,10 +2,23 @@
 #include "../include/bank.h"
 #include <stdbool.h>
 
+/**
+ * Global deadlock strategy selection.
+ * DEADLOCK_PREVENTION: lock ordering (ascending account ID) — default, implemented.
+ * DEADLOCK_DETECTION:  wait-for graph cycle detection — not implemented.
+ */
 DeadlockStrategy deadlock_strategy = DEADLOCK_PREVENTION;
 
 /**
- * Executes a transfer between two accounts with deadlock prevention.
+ * Executes a transfer between two accounts using deadlock-prevention.
+ *
+ * Steps:
+ *   1. Guard against self-transfer (avoids double-lock on same account).
+ *   2. Acquire write locks in ascending account ID order — this breaks the
+ *      circular-wait Coffman condition and prevents all deadlock scenarios.
+ *   3. Check sufficient funds; if OK, perform the debit/credit.
+ *   4. Release locks in reverse order of acquisition.
+ *
  * Returns 1 on success, 0 on failure (insufficient funds).
  */
 int transfer(int from_id, int to_id, int amount_centavos) {

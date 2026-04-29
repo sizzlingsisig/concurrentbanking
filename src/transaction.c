@@ -91,11 +91,20 @@ void wait_for_all_transactions(void) {
 }
 
 /**
- * Stub for loading transactions. Implementation depends on your 
- * specific parser logic for the trace file format.
+ * Parses a trace file and populates the global transactions array.
+ * Each line format: "TxLabel  StartTick  Operation  [args]"
+ * Supports DEPOSIT, WITHDRAW, TRANSFER, and BALANCE operations.
+ * Lines starting with # are treated as comments and skipped.
+ * Multiple lines with the same TxLabel belong to the same transaction.
+ * Returns the number of transactions loaded.
  */
 
-// Helper: Extract transaction number from "T1" -> 1
+// === Transaction Loading ===
+
+/**
+ * Extracts the numeric transaction ID from a label like "T1" or "T42".
+ * Handles labels prefixed with 'T' or 't', and bare numeric strings.
+ */
 static int parse_tx_number(const char* tx_label) {
     // Skip 'T' and parse the number
     if (tx_label[0] == 'T' || tx_label[0] == 't') {
@@ -104,7 +113,10 @@ static int parse_tx_number(const char* tx_label) {
     return atoi(tx_label);
 }
 
-// Helper: Find existing transaction by tx_id, or return -1
+/**
+ * Searches the loaded transactions array for one with the given tx_id.
+ * Returns its array index, or -1 if not found.
+ */
 static int find_transaction(int tx_id) {
     for (int i = 0; i < num_transactions; i++) {
         if (transactions[i].tx_id == tx_id) {

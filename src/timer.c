@@ -5,7 +5,16 @@
 #include "../include/timer.h"
 
 
-// Global simulation variables
+/**
+ * Global simulation clock and synchronization primitives.
+ *
+ * global_tick:   Current simulation time, incremented every tick_interval_ms.
+ * tick_lock:     Mutex protecting global_tick and the condition variable.
+ * tick_changed:  Condition variable; timer broadcasts on each tick increment
+ *                 to wake all transaction threads waiting on wait_until_tick().
+ * tick_interval_ms: Duration of one simulation tick in milliseconds.
+ * simulation_running: Flag set to 0 by stop_timer() to signal thread exit.
+ */
 volatile int64_t global_tick = 0;
 pthread_mutex_t tick_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t tick_changed = PTHREAD_COND_INITIALIZER;
@@ -24,8 +33,12 @@ void init_timer(int interval_ms) {
 }
 
 /**
- * The core timer loop. Runs in its own thread to advance global time.
+ * Timer thread worker loop. Runs until stop_timer() sets simulation_running = 0.
  *
+ * Each iteration: sleeps for tick_interval_ms, then increments global_tick
+ * and broadcasts tick_changed to wake all transaction threads waiting on
+ * wait_until_tick(). The mutex is unlocked during the sleep so that other
+ * threads can safely read global_tick while the timer is sleeping.
  */
 void* timer_thread(void* arg) {
     (void)arg; // unused parameter

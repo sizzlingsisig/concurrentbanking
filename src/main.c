@@ -15,6 +15,11 @@ char* trace_file = NULL;
 int tick_ms = 100;
 int verbose = 0;
 
+/**
+ * Command-line argument parser using getopt_long().
+ * Sets global flags: accounts_file, trace_file, tick_ms, verbose,
+ * and deadlock_strategy (prevention or detection).
+ */
 void print_usage(char* prog_name) {
     printf("Usage: %s --accounts=FILE --trace=FILE [options]\n", prog_name);
     printf("Options:\n");
@@ -25,6 +30,12 @@ void print_usage(char* prog_name) {
     printf("  --verbose                 Print detailed logs\n");
 }
 
+/**
+ * Main entry point. Initializes all subsystems, loads input files,
+ * spawns the timer thread and transaction threads, then waits for
+ * all threads to complete. Prints the transaction log, performance
+ * metrics, and balance conservation check before exiting.
+ */
 int main(int argc, char* argv[]) {
     int opt;
     int option_index = 0;
@@ -72,34 +83,35 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // --- Start Simulation ---
+    // === Initialize Subsystems ===
     init_bank();
     init_buffer_pool();
     init_metrics();
     init_timer(tick_ms);
 
+    // === Load Input Files ===
     if (load_accounts_from_file(accounts_file) < 0) return 1;
     int64_t initial_total = get_total_balance();
-    
+
     if (load_transactions_from_file(trace_file) < 0) return 1;
 
-    // Spawn Timer Thread
+    // === Spawn Threads ===
     pthread_t timer_tid;
     pthread_create(&timer_tid, NULL, timer_thread, NULL);
 
-    // Spawn Transaction Threads
     for (int i = 0; i < num_transactions; i++) {
         pthread_create(&transactions[i].thread, NULL, execute_transaction, &transactions[i]);
     }
 
+    // === Wait for All Transactions to Complete ===
     wait_for_all_transactions();
 
-    // Cleanup and Report
-    // Signal timer to stop, then join, then cleanup
+    // === Cleanup Timer ===
     stop_timer();
     pthread_join(timer_tid, NULL);
     cleanup_timer();
 
+    // === Print Results ===
     print_transaction_log();
     print_metrics();
     check_balance_conservation(initial_total);

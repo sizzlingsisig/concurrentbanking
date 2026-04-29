@@ -4,7 +4,11 @@
 #include "../include/timer.h"
 #include <stdio.h>
 
-// Global stats for Buffer Pool performance
+/**
+ * Global performance counters for buffer pool and transaction metrics.
+ * Updated by transaction.c (wait_ticks), buffer_pool.c (loads/unloads),
+ * and read by metrics.c (print_metrics, check_balance_conservation).
+ */
 int total_loads = 0;
 int total_unloads = 0;
 int peak_usage = 0;
@@ -67,8 +71,12 @@ void print_metrics(void) {
 }
 
 /**
- * Verification step: Sums all account balances and compares 
+ * Verification step: Sums all account balances and compares
  * against the starting total.
+ * Note: Conservation holds when net money flow is zero. DEPOSIT and WITHDRAW
+ * on the SAME account with equal amounts cancel out (net change = 0).
+ * TRANSFER operations always conserve since money moves between accounts.
+ * BALANCE operations are read-only and don't affect totals.
  */
 int check_balance_conservation(int64_t initial_total) {
     int64_t final_total = (int64_t)get_total_balance();
@@ -86,6 +94,11 @@ int check_balance_conservation(int64_t initial_total) {
     }
 }
 
+/**
+ * Cleans up metrics subsystem resources.
+ * Currently a no-op since no dynamic memory is allocated in metrics.c.
+ * Provided for API completeness and future extension.
+ */
 void cleanup_metrics(void) {
     // Placeholder for any dynamic memory cleanup if added later
 }

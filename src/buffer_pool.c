@@ -3,6 +3,21 @@
 #include "../include/metrics.h"
 #include <stdio.h>
 
+/**
+ * Global buffer pool instance.
+ *
+ * Implements the bounded-buffer (producer-consumer) problem:
+ *   - load_account()   : producer — waits for an empty slot, fills it
+ *   - unload_account() : consumer — waits for a full slot, empties it
+ *
+ * Synchronized by two counting semaphores:
+ *   - empty_slots: counts available (empty) slots; init to BUFFER_POOL_SIZE
+ *   - full_slots:  counts occupied (full) slots; init to 0
+ *
+ * When the pool is full, load_account() blocks on empty_slots, demonstrating
+ * bounded-buffer back-pressure. Transactions holding a slot keep it until
+ * commit or abort (cleanup block in execute_transaction).
+ */
 BufferPool buffer_pool;
 
 /**

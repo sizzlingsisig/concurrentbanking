@@ -3,6 +3,10 @@
 #include <stdio.h>
 #include <string.h>
 
+/**
+ * Global bank instance containing all account data.
+ * Initialized by init_bank() and populated by load_accounts_from_file().
+ */
 Bank bank;
 
 /**
@@ -77,6 +81,13 @@ int get_total_balance(void) {
     return total;
 }
 
+/**
+ * Reads an account file and initializes bank accounts.
+ * Skips comment lines (starting with #) and empty lines.
+ * Each valid line must contain: "account_id  balance_centavos"
+ * Initializes each account's rwlock and sets is_active = 1.
+ * Returns the number of accounts loaded, or -1 on file open error.
+ */
 int load_accounts_from_file(const char* filename) {
     FILE* file = fopen(filename, "r");
     if (!file) return -1;
