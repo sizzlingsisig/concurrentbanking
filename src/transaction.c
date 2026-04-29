@@ -9,6 +9,8 @@
 #include <string.h>
 #include <time.h>
 
+extern int verbose;
+
 __thread int current_tx_id = -1;
 
 Transaction transactions[MAX_TRANSACTIONS];
@@ -31,12 +33,42 @@ void* execute_transaction(void* arg) {
     
     // 1. Wait until the simulation reaches the scheduled start time
     wait_until_tick(tx->start_tick);
+    pthread_mutex_lock(&tick_lock);
     tx->actual_start = (int)global_tick;
+    int start_tick = tx->actual_start;
+    pthread_mutex_unlock(&tick_lock);
+
+    if (verbose) {
+        printf("Tick %d:\n", start_tick);
+        printf("  T%d started: ", tx->tx_id);
+        Operation* first_op = &tx->ops[0];
+        switch (first_op->type) {
+            case OP_DEPOSIT:
+                printf("DEPOSIT account %d amount PHP %d.%02d\n",
+                       first_op->account_id, first_op->amount_centavos/100, first_op->amount_centavos%100);
+                break;
+            case OP_WITHDRAW:
+                printf("WITHDRAW account %d amount PHP %d.%02d\n",
+                       first_op->account_id, first_op->amount_centavos/100, first_op->amount_centavos%100);
+                break;
+            case OP_TRANSFER:
+                printf("TRANSFER from %d to %d amount PHP %d.%02d\n",
+                       first_op->account_id, first_op->target_account,
+                       first_op->amount_centavos/100, first_op->amount_centavos%100);
+                break;
+            case OP_BALANCE:
+                printf("BALANCE account %d\n", first_op->account_id);
+                break;
+        }
+    }
     
     // 2. Iterate through operations
     for (int i = 0; i < tx->num_ops; i++) {
         Operation* op = &tx->ops[i];
-        int tick_before = (int)global_tick;
+        int tick_before;
+        pthread_mutex_lock(&tick_lock);
+        tick_before = (int)global_tick;
+        pthread_mutex_unlock(&tick_lock);
         
         // Logical constraint: Load account into buffer pool before use
         load_account(op->account_id);
@@ -76,7 +108,11 @@ void* execute_transaction(void* arg) {
         nanosleep(&ts, NULL);
         
         // Track time spent waiting for locks
-        tx->wait_ticks += ((int)global_tick - tick_before);
+        int current_tick;
+        pthread_mutex_lock(&tick_lock);
+        current_tick = (int)global_tick;
+        pthread_mutex_unlock(&tick_lock);
+        tx->wait_ticks += (current_tick - tick_before);
     }
     
     tx->status = TX_COMMITTED;
@@ -90,7 +126,33 @@ cleanup:
         }
     }
     
+    pthread_mutex_lock(&tick_lock);
     tx->actual_end = (int)global_tick;
+    int end_tick = tx->actual_end;
+    pthread_mutex_unlock(&tick_lock);
+
+    if (verbose) {
+        printf("Tick %d:\n", end_tick);
+        printf("  T%d completed: ", tx->tx_id);
+        Operation* last_op = &tx->ops[tx->num_ops - 1];
+        switch (last_op->type) {
+            case OP_DEPOSIT:
+                printf("DEPOSIT successful\n");
+                break;
+            case OP_WITHDRAW:
+                printf("WITHDRAW successful\n");
+                break;
+            case OP_TRANSFER:
+                printf("TRANSFER successful\n");
+                break;
+            case OP_BALANCE: {
+                int balance = get_balance(last_op->account_id);
+                printf("T%d: Account %d balance = PHP %d.%02d\n",
+                       tx->tx_id, last_op->account_id, balance / 100, balance % 100);
+                break;
+            }
+        }
+    }
     
     if (tx_completed_hook) {
         tx_completed_hook(tx);
