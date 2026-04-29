@@ -2,7 +2,10 @@
 #define METRICS_H
 
 #include <stdint.h>
+#include "transaction.h"
 
+void register_metrics_listener(TxCallback callback);
+void on_transaction_completed(Transaction* tx);
 void print_transaction_log(void);
 void print_metrics(void);
 int check_balance_conservation(int64_t initial_total);

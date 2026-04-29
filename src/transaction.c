@@ -12,6 +12,12 @@
 Transaction transactions[MAX_TRANSACTIONS];
 int num_transactions = 0;
 
+static TxCallback tx_completed_hook = NULL;
+
+void register_tx_completed(TxCallback callback) {
+    tx_completed_hook = callback;
+}
+
 /**
  * The worker function for each transaction thread.
  * Coordinates timing, execution, and metric collection.
@@ -81,6 +87,11 @@ cleanup:
     }
     
     tx->actual_end = (int)global_tick;
+    
+    if (tx_completed_hook) {
+        tx_completed_hook(tx);
+    }
+    
     return NULL;
 }
 

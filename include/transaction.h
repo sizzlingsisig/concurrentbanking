@@ -42,6 +42,10 @@ typedef struct {
 } Transaction;
 
 
+typedef void (*TxCallback)(Transaction*);
+
+void register_tx_completed(TxCallback callback);
+
 #define MAX_TRANSACTIONS 1000
 extern Transaction transactions[MAX_TRANSACTIONS];
 extern int num_transactions;

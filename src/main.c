@@ -76,6 +76,7 @@ int main(int argc, char* argv[]) {
     init_bank();
     init_buffer_pool();
     init_metrics();
+    register_metrics_listener(on_transaction_completed);
     init_timer(tick_ms);
 
     if (load_accounts_from_file(accounts_file) < 0) return 1;

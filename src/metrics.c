@@ -1,23 +1,45 @@
 #include "../include/metrics.h"
 #include "../include/bank.h"
-#include "../include/transaction.h"
 #include "../include/timer.h"
+#include "../include/buffer_pool.h"
 #include <stdio.h>
 
-// Global stats for Buffer Pool performance
+static int committed_count = 0;
+static int aborted_count = 0;
+static long total_wait_ticks = 0;
+static int total_completed = 0;
+
 int total_loads = 0;
 int total_unloads = 0;
 int peak_usage = 0;
 int blocked_operations = 0;
 
+void on_transaction_completed(Transaction* tx) {
+    total_completed++;
+    if (tx->status == TX_COMMITTED) {
+        committed_count++;
+    } else {
+        aborted_count++;
+    }
+    total_wait_ticks += tx->wait_ticks;
+}
+
 /**
  * Initializes metrics-related counters.
  */
 void init_metrics(void) {
+    committed_count = 0;
+    aborted_count = 0;
+    total_wait_ticks = 0;
+    total_completed = 0;
     total_loads = 0;
     total_unloads = 0;
     peak_usage = 0;
     blocked_operations = 0;
+}
+
+void register_metrics_listener(TxCallback callback) {
+    register_tx_completed(callback);
 }
 
 /**
@@ -40,29 +62,20 @@ void print_transaction_log(void) {
  * Prints a high-level summary of the simulation performance.
  */
 void print_metrics(void) {
-    int committed = 0;
-    int aborted = 0;
-    long total_wait = 0;
-
-    for (int i = 0; i < num_transactions; i++) {
-        if (transactions[i].status == TX_COMMITTED) committed++;
-        else aborted++;
-        total_wait += transactions[i].wait_ticks;
-    }
-
-    double avg_wait = (num_transactions > 0) ? (double)total_wait / num_transactions : 0;
-    double throughput = (global_tick > 0) ? (double)committed / global_tick : 0;
+    int total = committed_count + aborted_count;
+    double avg_wait = (total > 0) ? (double)total_wait_ticks / total : 0;
+    double throughput = (global_tick > 0) ? (double)committed_count / global_tick : 0;
 
     printf("\n--- Simulation Summary ---\n");
-    printf("Total Transactions: %d\n", num_transactions);
-    printf("Committed:          %d\n", committed);
-    printf("Aborted:            %d\n", aborted);
+    printf("Total Transactions: %d\n", total_completed);
+    printf("Committed:          %d\n", committed_count);
+    printf("Aborted:            %d\n", aborted_count);
     printf("Throughput:         %.2f tx/tick\n", throughput);
     printf("Average Wait Time:  %.2f ticks\n", avg_wait);
     
     printf("\n--- Buffer Pool Stats ---\n");
     printf("Total Loads:        %d\n", total_loads);
-    printf("Peak Usage:         %d/5 slots\n", peak_usage);
+    printf("Peak Usage:         %d/%d slots\n", peak_usage, BUFFER_POOL_SIZE);
     printf("Blocked Ops:        %d\n", blocked_operations);
 }
 
