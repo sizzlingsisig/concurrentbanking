@@ -100,24 +100,61 @@ We chose **prevention** because:
 
 The buffer pool uses:
 - `sem_t empty_slots` - Counts available slots (starts at 5)
-- `sem_t full_slots` - Counts filled slots (starts at 0)
 - `pthread_mutex_t pool_lock` - Protects slot metadata
+- `int pin_count` - Per-slot reference count to handle multi-operation transactions
 
 ```c
 void load_account(int account_id) {
+    // Check if already in pool (reuse if found)
+    pthread_mutex_lock(&pool_lock);
+    if (found) {
+        slot->pin_count++;
+        pthread_mutex_unlock(&pool_lock);
+        return;
+    }
+    pthread_mutex_unlock(&pool_lock);
+
+    // Otherwise, acquire new slot
     sem_wait(&buffer_pool.empty_slots);  // Block if full
     pthread_mutex_lock(&pool_lock);
-    // Find and fill slot...
+    // Find empty slot, load data, and set pin_count = 1
     pthread_mutex_unlock(&pool_lock);
-    sem_post(&buffer_pool.full_slots);
 }
 ```
 
 ### Design Justification
 
-1. **Performance** - Avoids repeated loads for same account during multi-operation transaction
-2. **Simplicity** - Straightforward strategy vs. LRU or other eviction policies
-3. **Demonstrates problem** - Properly shows blocking when pool is saturated
+1. **Performance** - Avoids repeated loads for same account during multi-operation transaction using `pin_count`.
+2. **Simplicity** - Straightforward strategy vs. LRU or other eviction policies.
+3. **Demonstrates problem** - Properly shows blocking when pool is saturated.
+4. **Reference Counting** - The `pin_count` ensures that a slot is only truly "freed" when all operations using it have finished, preventing premature eviction.
+
+### Why Not Other Strategies?
+
+#### Load/Unload Per Operation
+- **Disadvantage**: Would require loading/unloading for every single operation within a transaction
+- **Impact**: Adds unnecessary semaphore overhead when a transaction accesses the same account multiple times
+- **Our choice**: Avoid this overhead by keeping loaded accounts for transaction duration
+
+#### Load All Accounts at Start, Unload All at End
+- **Disadvantage**: Need to know all accounts a transaction will access before execution starts
+- **Problem**: Our transaction file format doesn't pre-declare all accounts - they're discovered per operation
+- **Additional issue**: Would hold buffer slots unnecessarily long if transaction accesses only a subset
+
+#### LRU Eviction Policy
+- **Disadvantage**: More complex to implement correctly
+- **Overhead**: Requires tracking access order and timestamps for every slot
+- **Unnecessary**: For our workload (short transactions, 5-slot pool), the added complexity doesn't yield significant benefit
+- **Our approach**: Pin-count based (same slot can be reused by multiple ops) is simpler and sufficient for our use case
+
+### Summary Table
+
+| Strategy | Complexity | Overhead | Chosen? |
+|----------|------------|----------|---------|
+| Load on first access, unload on commit | Low | Minimal | ✅ |
+| Load/unload per operation | Low | High | ❌ |
+| Load all at start, unload all at end | Medium | Requires pre-declaration | ❌ |
+| LRU eviction | High | Per-slot tracking | ❌ |
 
 ---
 
@@ -182,6 +219,8 @@ Throughput: 4.00 tx/tick (concurrent)
 
 ### Implementation
 
+The timer uses a **Condition Variable** (`pthread_cond_t`) to efficiently wake up transactions:
+
 ```c
 void* timer_thread(void* arg) {
     while (simulation_running) {
@@ -189,14 +228,14 @@ void* timer_thread(void* arg) {
         
         pthread_mutex_lock(&tick_lock);
         global_tick++;
-        pthread_cond_broadcast(&tick_changed);  // Wake waiting threads
+        pthread_cond_broadcast(&tick_changed);  // Wake all waiting threads
         pthread_mutex_unlock(&tick_lock);
     }
     return NULL;
 }
 ```
 
-Transactions wait for their scheduled start:
+Transactions wait for their scheduled start using the **Condition Wait** pattern:
 
 ```c
 void wait_until_tick(int target_tick) {
@@ -207,6 +246,12 @@ void wait_until_tick(int target_tick) {
     pthread_mutex_unlock(&tick_lock);
 }
 ```
+
+### Why Condition Variables?
+
+- **Efficiency**: Prevents "busy waiting" where threads consume CPU while waiting for a tick.
+- **Precision**: Threads wake up immediately when the tick increments.
+- **Scalability**: `pthread_cond_broadcast` allows multiple transactions starting at the same time to wake up simultaneously.
 
 ### What Breaks Without the Timer Thread?
 

@@ -116,7 +116,6 @@ typedef struct {
 typedef struct {
     BufferSlot slots[BUFFER_POOL_SIZE];  // 5 slots
     sem_t empty_slots;   // counts empty slots
-    sem_t full_slots;   // counts loaded slots
     pthread_mutex_t pool_lock;
 } BufferPool;
 ```
@@ -130,8 +129,9 @@ typedef struct {
 **Design Pattern:** Producer-Consumer (bounded buffer)
 
 **Behavior:**
-- `load_account` waits if no empty slots (sem_wait on empty_slots)
-- `unload_account` signals when slot is available (sem_post on empty_slots)
+- `load_account` checks if account is already in pool; if so, increments `pin_count`.
+- If not in pool, `load_account` waits if no empty slots (`sem_wait` on `empty_slots`) and sets `pin_count` to 1.
+- `unload_account` decrements `pin_count`. If it hits 0, it signals when slot is available (`sem_post` on `empty_slots`).
 
 ---
 

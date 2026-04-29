@@ -151,12 +151,12 @@ typedef struct {
     int account_id;
     Account* data;
     bool in_use;
+    int pin_count;
 } BufferSlot;
 
 typedef struct {
     BufferSlot slots[BUFFER_POOL_SIZE];
     sem_t empty_slots;
-    sem_t full_slots;
     pthread_mutex_t pool_lock;
 } BufferPool;
 ```
@@ -318,37 +318,37 @@ This implementation breaks the **circular wait** condition (one of the four Coff
 ```c
 void init_buffer_pool(BufferPool* pool) {
     sem_init(&pool->empty_slots, 0, BUFFER_POOL_SIZE);
-    sem_init(&pool->full_slots, 0, 0);
     pthread_mutex_init(&pool->pool_lock, NULL);
 }
 
 void load_account(BufferPool* pool, int account_id) {
-    sem_wait(&pool->empty_slots);
+    // Check if in pool
     pthread_mutex_lock(&pool->pool_lock);
-    for (int i = 0; i < BUFFER_POOL_SIZE; i++) {
-        if (!pool->slots[i].in_use) {
-            pool->slots[i].account_id = account_id;
-            pool->slots[i].data = &bank.accounts[account_id];
-            pool->slots[i].in_use = true;
-            break;
-        }
+    if (found) {
+        slot->pin_count++;
+        pthread_mutex_unlock(&pool->pool_lock);
+        return;
     }
     pthread_mutex_unlock(&pool->pool_lock);
-    sem_post(&pool->full_slots);
+
+    sem_wait(&pool->empty_slots);
+    pthread_mutex_lock(&pool->pool_lock);
+    // Find empty slot and load
+    slot->pin_count = 1;
+    pthread_mutex_unlock(&pool->pool_lock);
 }
 
 void unload_account(BufferPool* pool, int account_id) {
-    sem_wait(&pool->full_slots);
     pthread_mutex_lock(&pool->pool_lock);
-    for (int i = 0; i < BUFFER_POOL_SIZE; i++) {
-        if (pool->slots[i].in_use && pool->slots[i].account_id == account_id) {
-            pool->slots[i].in_use = false;
-            pool->slots[i].account_id = -1;
-            break;
-        }
+    // find slot
+    slot->pin_count--;
+    if (slot->pin_count == 0) {
+        slot->in_use = false;
+        pthread_mutex_unlock(&pool->pool_lock);
+        sem_post(&pool->empty_slots);
+        return;
     }
     pthread_mutex_unlock(&pool->pool_lock);
-    sem_post(&pool->empty_slots);
 }
 ```
 
@@ -684,7 +684,7 @@ This breaks **Coffman Condition #4: Circular Wait**
 | pthread_rwlock_t | Reader-writer lock | Per-account lock for balance operations |
 | pthread_mutex_t | Mutual exclusion | Bank metadata, tick counter, buffer pool |
 | pthread_cond_t | Condition variable | Timer signaling |
-| sem_t | Counting semaphore | Buffer pool empty/full slots |
+| sem_t | Counting semaphore | Buffer pool empty slots |
 
 ---
 

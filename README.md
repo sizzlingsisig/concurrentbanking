@@ -82,11 +82,11 @@ The program outputs:
 - [x] Deadlock prevention via lock ordering
 - [x] Bounded buffer pool with semaphores
 - [x] Timer thread for time simulation
+- [x] Condition variables for thread synchronization
 - [x] Transaction metrics collection
 - [x] Balance conservation verification
 - [x] ThreadSanitizer validation
 
 ## Known Limitations
 
-- Deadlock detection not fully implemented (prevention only)
-- Verbose mode not implemented
+- Deadlock detection implementation is experimental
