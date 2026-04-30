@@ -1,0 +1,2 @@
+# Self-transfer should abort
+T1  0  TRANSFER  10  10  1000

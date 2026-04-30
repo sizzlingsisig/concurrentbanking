@@ -1,0 +1,12 @@
+# Build artifacts
+bankdb
+*.o
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store

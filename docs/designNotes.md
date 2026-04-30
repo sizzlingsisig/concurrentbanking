@@ -151,12 +151,12 @@ typedef struct {
     int account_id;
     Account* data;
     bool in_use;
+    int pin_count;
 } BufferSlot;
 
 typedef struct {
     BufferSlot slots[BUFFER_POOL_SIZE];
     sem_t empty_slots;
-    sem_t full_slots;
     pthread_mutex_t pool_lock;
 } BufferPool;
 ```
@@ -318,37 +318,37 @@ This implementation breaks the **circular wait** condition (one of the four Coff
 ```c
 void init_buffer_pool(BufferPool* pool) {
     sem_init(&pool->empty_slots, 0, BUFFER_POOL_SIZE);
-    sem_init(&pool->full_slots, 0, 0);
     pthread_mutex_init(&pool->pool_lock, NULL);
 }
 
 void load_account(BufferPool* pool, int account_id) {
-    sem_wait(&pool->empty_slots);
+    // Check if in pool
     pthread_mutex_lock(&pool->pool_lock);
-    for (int i = 0; i < BUFFER_POOL_SIZE; i++) {
-        if (!pool->slots[i].in_use) {
-            pool->slots[i].account_id = account_id;
-            pool->slots[i].data = &bank.accounts[account_id];
-            pool->slots[i].in_use = true;
-            break;
-        }
+    if (found) {
+        slot->pin_count++;
+        pthread_mutex_unlock(&pool->pool_lock);
+        return;
     }
     pthread_mutex_unlock(&pool->pool_lock);
-    sem_post(&pool->full_slots);
+
+    sem_wait(&pool->empty_slots);
+    pthread_mutex_lock(&pool->pool_lock);
+    // Find empty slot and load
+    slot->pin_count = 1;
+    pthread_mutex_unlock(&pool->pool_lock);
 }
 
 void unload_account(BufferPool* pool, int account_id) {
-    sem_wait(&pool->full_slots);
     pthread_mutex_lock(&pool->pool_lock);
-    for (int i = 0; i < BUFFER_POOL_SIZE; i++) {
-        if (pool->slots[i].in_use && pool->slots[i].account_id == account_id) {
-            pool->slots[i].in_use = false;
-            pool->slots[i].account_id = -1;
-            break;
-        }
+    // find slot
+    slot->pin_count--;
+    if (slot->pin_count == 0) {
+        slot->in_use = false;
+        pthread_mutex_unlock(&pool->pool_lock);
+        sem_post(&pool->empty_slots);
+        return;
     }
     pthread_mutex_unlock(&pool->pool_lock);
-    sem_post(&pool->empty_slots);
 }
 ```
 
@@ -549,63 +549,105 @@ Conservation check: PASSED/FAILED
 
 ---
 
-## Phase 7: Expected Output Formats
+## Phase 6: Design Documentation
 
-### 7.1 Transaction Log
+### 6.1 Deadlock Strategy Choice
 
-```
-=== Banking System Execution Log ===
-Timer thread started (tick interval: 100ms)
+**Question:** Which strategy did you choose (prevention or detection)?
 
-Tick 0:
-  T1 started: DEPOSIT account 10 amount PHP 50.00
+**Answer:** DEADLOCK_PREVENTION (lock ordering)
 
-Tick 1:
-  T1 completed: DEPOSIT successful
-  T2 started: WITHDRAW account 10 amount PHP 20.00
+**Why this strategy?**
+- Simpler to implement correctly than detection
+- No runtime overhead for cycle detection
+- Guarantees no deadlock occurs vs detecting after it happens
+- Standard approach for banking systems
 
-...
-```
+**Proof: Lock Ordering Eliminates Circular Wait**
 
-### 7.2 Performance Metrics
+The transfer function acquires locks in ascending account ID order:
 
-```
-=== Transaction Performance Metrics ===
-TxID | StartTick | ActualStart | End | WaitTicks | Status
------|-----------|-------------|-----|-----------|----------
-T1   |     0     |      0      |  1  |     0     | COMMITTED
-...
+```c
+int first = (from_id < to_id) ? from_id : to_id;
+int second = (from_id < to_id) ? to_id : from_id;
 
-Average wait time: 0.4 ticks
-Throughput: 5 transactions / 6 ticks = 0.83 tx/tick
+pthread_rwlock_wrlock(&accounts[first].lock);
+pthread_rwlock_wrlock(&accounts[second].lock);
 ```
 
-### 7.3 Buffer Pool Report
+This breaks **Coffman Condition #4: Circular Wait**
 
-```
-=== Buffer Pool Report ===
-Pool size: 5 slots
-Total loads: 8
-Total unloads: 8
-Peak usage: 4 slots
-Blocked operations (pool full): 0
-```
+- A transaction holding lock on account N can only wait for locks on accounts M where M > N
+- Therefore, it can never wait for a lock it already holds
+- No circular wait chain possible
+
+### 6.2 Buffer Pool Integration
+
+**When to load accounts:**
+- Load on first account access in transaction
+- Keep in pool for duration of transaction  
+- Unload on commit or abort
+
+**What happens if pool is full:**
+- Transaction blocks on `sem_wait(&empty_slots)`
+- Demonstrates bounded buffer (producer-consumer) problem
+- Unblocks when another transaction unloads an account
+
+**Design justification:**
+- Balances performance vs complexity
+- Avoids repeated loads for same account during multi-operation transaction
+- Demonstrates proper semaphore coordination
+
+### 6.3 Reader-Writer Lock Performance
+
+**Comparison: pthread_mutex_t vs pthread_rwlock_t**
+
+| Lock Type | trace_readers.txt (4 concurrent reads) |
+|-----------|----------------------------------------|
+| pthread_mutex_t | Serialized, slower |
+| pthread_rwlock_t | Concurrent, faster |
+
+**Analysis:**
+- RWLock allows multiple readers to access simultaneously
+- Biggest improvement on read-heavy workloads (like trace_readers.txt)
+- Writers still get exclusive access to maintain correctness
+
+### 6.4 Timer Thread Design
+
+**Why is a separate timer thread necessary?**
+
+1. Enables true concurrent transaction scheduling
+   - Transactions can start at the same tick
+   - Tests concurrency control under realistic conditions
+
+2. Provides consistent timing measurement
+   - Lock wait times measured in ticks, not wall-clock
+   - Reproducible across runs
+
+3. Simulates real-world time-based systems
+   - Banking systems schedule transactions by time
+
+**What would break without the timer?**
+- Sequential operation processing only
+- Cannot test concurrent access patterns
+- No way to measure meaningful wait_ticks
+- Would lose ability to test lock contention
 
 ---
 
 ## Implementation Checklist
 
-### Phase 1: Setup
-- [ ] Create directory structure
-- [ ] Create Makefile with all targets
+### Phase 1: Project Setup
+- [x] Create directory structure
+- [x] Create Makefile with all targets (all, debug, clean, test)
 
-### Phase 2: Headers
-- [ ] bank.h - Account and Bank structs
-- [ ] transaction.h - Transaction and Operation types
-- [ ] timer.h - Timer thread declarations
-- [ ] lock_mgr.h - Lock ordering functions
-- [ ] buffer_pool.h - Buffer pool declarations
-- [ ] metrics.h - Metrics functions
+### Phase 2: Data Structures & Headers
+- [x] bank.h - Account and Bank structs
+- [x] transaction.h - Transaction and Operation types
+- [x] timer.h - Timer thread declarations
+- [x] lock_mgr.h - Lock ordering functions
+- [x] buffer_pool.h - Buffer pool declarations
+- [x] metrics.h - Metrics functions
 
 ### Phase 3: Core Implementation
 - [ ] timer.c - Timer thread, wait_until_tick
@@ -615,25 +657,23 @@ Blocked operations (pool full): 0
 - [ ] transaction.c - execute_transaction thread
 - [ ] metrics.c - Statistics collection
 
-### Phase 4: Main Program
-- [ ] main.c - CLI parsing, file loading, initialization
+### Phase 4: Input Handling & Main Program
+- [x] main.c - CLI parsing, file loading, initialization
+- [x] Account file format support
+- [x] Trace file format support
 
-### Phase 5: Test Files
-- [ ] accounts.txt - Initial balances
-- [ ] trace_simple.txt - Basic operations
-- [ ] trace_readers.txt - Concurrent reads
-- [ ] trace_deadlock.txt - Transfer scenario
-- [ ] trace_abort.txt - Insufficient funds
-- [ ] trace_buffer.txt - Buffer saturation
+### Phase 5: Testing
+- [x] accounts.txt - Initial balances
+- [x] trace_simple.txt - Basic operations (fixed to use TRANSFER)
+- [x] trace_readers.txt - Concurrent reads
+- [x] trace_deadlock.txt - Transfer scenario
+- [x] trace_abort.txt - Insufficient funds
+- [x] trace_buffer.txt - Buffer saturation (fixed to use TRANSFER)
+- [ ] ThreadSanitizer validation - Zero warnings required (PENDING)
 
-### Phase 6: Validation
-- [ ] ThreadSanitizer - Zero warnings
-- [ ] Balance conservation - Pass
-- [ ] Deadlock prevention - Verified
-
-### Phase 7: Documentation
-- [ ] README.md - Compilation and usage
-- [ ] design.md - Required discussion topics
+### Phase 6: Documentation
+- [x] architecture.md - System architecture
+- [ ] README.md - Compilation and usage (optional)
 
 ---
 
@@ -644,7 +684,7 @@ Blocked operations (pool full): 0
 | pthread_rwlock_t | Reader-writer lock | Per-account lock for balance operations |
 | pthread_mutex_t | Mutual exclusion | Bank metadata, tick counter, buffer pool |
 | pthread_cond_t | Condition variable | Timer signaling |
-| sem_t | Counting semaphore | Buffer pool empty/full slots |
+| sem_t | Counting semaphore | Buffer pool empty slots |
 
 ---
 
