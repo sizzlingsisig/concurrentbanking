@@ -90,3 +90,30 @@ The program outputs:
 ## Known Limitations
 
 - Deadlock detection implementation is experimental
+
+## Screenshots
+### ThreadSanitizer producing zero warnings on all test cases
+- trace_simple
+![trace_simple](screenshots/tsan-trace_simple.png)
+- trace_readers
+![trace_readers](screenshots/tsan-trace_readers1.png)
+![trace_readers](screenshots/tsan-trace_readers2.png)
+- trace_deadlock
+![trace_deadlock](screenshots/tsan-trace_deadlock1.png)
+![trace_deadlock](screenshots/tsan-trace_deadlock2.png)
+- trace_abort
+![trace_abort](screenshots/tsan-trace_abort.png)
+- trace_buffer
+![trace_buffer](screenshots/tsan-trace_buffer1.png)
+![trace_buffer](screenshots/tsan-trace_buffer2.png)
+
+### Deadlock handling (prevention or detection) working correctly
+![deadlock prevention](screenshots/deadlock_prevention1.png)
+![deadlock prevention](screenshots/deadlock_prevention2.png)
+
+### Buffer pool blocking when full, then unblocking
+![buffer pool](screenshots/buffer_pool1.png)
+![buffer pool](screenshots/buffer_pool2.png)
+
+### Balance conservation check passing
+- Shown in all the screenshots.
