@@ -61,11 +61,36 @@ make test
 
 | Test File | Description |
 |-----------|-------------|
-| `trace_simple.txt` | Basic operations - no conflicts |
-| `trace_readers.txt` | Concurrent balance queries |
-| `trace_deadlock.txt` | Two transfers in opposite directions |
-| `trace_abort.txt` | Insufficient funds scenario |
-| `trace_buffer.txt` | Buffer pool saturation |
+| `trace_simple.txt` | Test 1: No Conflicts — sequential deposit, withdraw, balance |
+| `trace_readers.txt` | Test 2: Concurrent Readers — multiple balance queries at once |
+| `trace_deadlock.txt` | Test 3: Deadlock Scenario — two transfers in opposite directions |
+| `trace_abort.txt` | Test 4: Insufficient Funds — withdrawal exceeding balance |
+| `trace_buffer.txt` | Test 5: Buffer Pool Saturation — 6 transactions > 5 pool slots |
+
+## Trace File Format
+
+Trace files define transaction workloads with the following format:
+
+```
+# Comment line
+T<id> <tick> <OPERATION> <account> [args...]
+```
+
+### Supported Operations
+
+| Operation | Arguments | Description |
+|-----------|-----------|-------------|
+| `DEPOSIT` | account amount | Add funds to account |
+| `WITHDRAW` | account amount | Remove funds from account (aborts if insufficient) |
+| `BALANCE` | account | Query account balance |
+| `TRANSFER` | from to amount | Move funds between accounts |
+
+### Example
+```
+T1  0  DEPOSIT   10  5000
+T2  1  TRANSFER  10  20  3000
+T2  2  BALANCE   20
+```
 
 ## Output Format
 
