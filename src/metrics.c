@@ -3,10 +3,13 @@
 #include "../include/timer.h"
 #include "../include/buffer_pool.h"
 #include <stdio.h>
+#include <stdint.h>
 
-extern int verbose;
+#include "../include/main.h"
 
 static pthread_mutex_t metrics_lock = PTHREAD_MUTEX_INITIALIZER;
+
+static int64_t net_external_flow = 0;
 
 int committed_count = 0;
 int aborted_count = 0;
@@ -33,7 +36,14 @@ void on_transaction_completed(Transaction* tx) {
 /**
  * Initializes metrics-related counters.
  */
+void record_external_flow(int64_t delta) {
+    pthread_mutex_lock(&metrics_lock);
+    net_external_flow += delta;
+    pthread_mutex_unlock(&metrics_lock);
+}
+
 void init_metrics(void) {
+    net_external_flow = 0;
     committed_count = 0;
     aborted_count = 0;
     total_wait_ticks = 0;
@@ -119,12 +129,15 @@ void print_metrics(void) {
  */
 int check_balance_conservation(int64_t initial_total) {
     int64_t final_total = (int64_t)get_total_balance();
+    int64_t expected_total = initial_total + net_external_flow;
+    int64_t abs_net = net_external_flow < 0 ? -net_external_flow : net_external_flow;
     
     printf("\n--- Balance Conservation Check ---\n");
     printf("Initial Total: PHP %ld.%02ld\n", initial_total / 100, initial_total % 100);
+    printf("Net External:  PHP %+ld.%02ld\n", net_external_flow / 100, abs_net % 100);
     printf("Final Total:   PHP %ld.%02ld\n", final_total / 100, final_total % 100);
     
-    if (initial_total == final_total) {
+    if (final_total == expected_total) {
         printf("Result:        SUCCESS (Balances match)\n");
         return 1;
     } else {

@@ -4,12 +4,12 @@
 #include "../include/timer.h"
 #include "../include/lock_mgr.h"
 #include "../include/buffer_pool.h"
+#include "../include/metrics.h"
+#include "../include/main.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-
-extern int verbose;
 
 __thread int current_tx_id = -1;
 
@@ -79,6 +79,7 @@ void* execute_transaction(void* arg) {
         switch (op->type) {
             case OP_DEPOSIT:
                 deposit(op->account_id, op->amount_centavos);
+                record_external_flow(op->amount_centavos);
                 break;
                 
             case OP_WITHDRAW:
@@ -86,6 +87,7 @@ void* execute_transaction(void* arg) {
                     tx->status = TX_ABORTED;
                     goto cleanup;
                 }
+                record_external_flow(-op->amount_centavos);
                 break;
                 
             case OP_TRANSFER:

@@ -9,6 +9,7 @@ void register_metrics_listener(TxCallback callback);
 void on_transaction_completed(Transaction* tx);
 void print_transaction_log(void);
 void print_metrics(void);
+void record_external_flow(int64_t delta);
 int check_balance_conservation(int64_t initial_total);
 void init_metrics(void);
 void cleanup_metrics(void);
