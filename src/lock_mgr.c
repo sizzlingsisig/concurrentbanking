@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <errno.h>
 
-extern int verbose;
+#include "../include/main.h"
 
 DeadlockHandler dl_handler;
 

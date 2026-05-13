@@ -8,6 +8,7 @@
 #include "../include/transaction.h"
 #include "../include/metrics.h"
 #include "../include/buffer_pool.h"
+#include "../include/main.h"
 
 // Global flags for CLI options
 char* accounts_file = NULL;
